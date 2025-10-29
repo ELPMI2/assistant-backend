@@ -1,7 +1,26 @@
 import os
-from fastapi import FastAPI
+from typing import List, Dict
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+import requests
+
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+MODEL = os.getenv("MODEL", "openai/gpt-4o-mini")  # 4o = lettre o
+OPENROUTER_SITE = os.getenv("OPENROUTER_SITE", "https://TON-SERVICE.onrender.com")  # remplace par ton URL
+OPENROUTER_TITLE = os.getenv("OPENROUTER_TITLE", "Assistant Backend")
 
 app = FastAPI(title="Assistant Backend")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+class ChatRequest(BaseModel):
+    message: str
+    history: List[Dict[str, str]] | None = None
 
 @app.get("/health")
 def health():
@@ -10,8 +29,38 @@ def health():
 @app.get("/env")
 def env():
     return {
-        "MODEL": os.getenv("MODEL"),
-        "OPENROUTER_API_KEY": bool(os.getenv("OPENROUTER_API_KEY")),
-        "OPENROUTER_SITE": os.getenv("OPENROUTER_SITE"),
-        "OPENROUTER_TITLE": os.getenv("OPENROUTER_TITLE"),
+        "provider": "openrouter",
+        "has_key": bool(OPENROUTER_API_KEY),
+        "model": MODEL,
+        "site": OPENROUTER_SITE,
+        "title": OPENROUTER_TITLE,
     }
+
+@app.post("/chat")
+def chat(req: ChatRequest):
+    if not OPENROUTER_API_KEY:
+        raise HTTPException(status_code=500, detail="OPENROUTER_API_KEY manquante (Settings > Environment).")
+
+    msgs = [{"role": "system", "content": "Tu es un assistant concis en français."}]
+    if req.history:
+        for h in req.history[:10]:
+            msgs.append({"role": h.get("role", "user"), "content": h.get("content", "")})
+    msgs.append({"role": "user", "content": req.message})
+
+    r = requests.post(
+        "https://openrouter.ai/api/v1/chat/completions",
+        headers={
+            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": OPENROUTER_SITE,
+            "X-Title": OPENROUTER_TITLE,
+        },
+        json={"model": MODEL, "messages": msgs, "temperature": 0.4},
+        timeout=30
+    )
+    if r.status_code >= 400:
+        raise HTTPException(status_code=r.status_code, detail=r.text)
+    data = r.json()
+    ans = data["choices"][0]["message"]["content"]
+    return {"answer": ans}
+
