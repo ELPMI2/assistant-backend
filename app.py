@@ -32,3 +32,6 @@ def chat(req: ChatRequest):
     resp = client.chat.completions.create(model=MODEL, messages=msgs, temperature=0.4)
     return {"answer": resp.choices[0].message.content}
 
+@app.get("/")
+def root():
+    return {"ok": True, "hint": "Utilisez /health ou POST /chat"}
