@@ -6,7 +6,7 @@ from pydantic import BaseModel
 import requests
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-MODEL = os.getenv("MODEL", "openai/gpt-4o-mini")  # modèle via OpenRouter
+MODEL = os.getenv("MODEL", "openai/gpt-4o-mini")  # attention: 4o (lettre o), pas 40
 
 app = FastAPI(title="Assistant Backend")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -21,7 +21,7 @@ def health():
 
 @app.get("/env")
 def env():
-    return {"has_key": bool(OPENROUTER_API_KEY), "model": MODEL}
+    return {"provider": "openrouter", "has_key": bool(OPENROUTER_API_KEY), "model": MODEL}
 
 @app.post("/chat")
 def chat(req: ChatRequest):
