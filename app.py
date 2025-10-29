@@ -7,31 +7,62 @@ from openai import OpenAI
 
 MODEL = os.getenv("MODEL", "gpt-4o-mini")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-client = OpenAI(api_key=OPENAI_API_KEY)
 
 app = FastAPI(title="Assistant Backend")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 class ChatRequest(BaseModel):
     message: str
     history: List[Dict[str, str]] | None = None
 
+@app.get("/")
+def root():
+    return {"ok": True, "hint": "use /health, /env, /diag, POST /chat"}
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
 
+# 1) Vérifie que la clé est bien chargée côté serveur
+@app.get("/env")
+def env():
+    return {
+        "has_key": bool(OPENAI_API_KEY),
+        "key_prefix": (OPENAI_API_KEY[:4] if OPENAI_API_KEY else None),
+        "model": MODEL,
+    }
+
+# 2) Teste un appel OpenAI et renvoie l’erreur exacte si ça casse
+@app.get("/diag")
+def diag():
+    if not OPENAI_API_KEY:
+        raise HTTPException(status_code=500, detail="OPENAI_API_KEY absente (Render > Settings > Environment).")
+    try:
+        resp = client.chat.completions.create(
+            model=MODEL,
+            messages=[{"role": "user", "content": "ping"}],
+            temperature=0.0,
+        )
+        return {"ok": True, "answer_sample": resp.choices[0].message.content[:60]}
+    except Exception as e:
+        # renvoyer l’erreur textuelle pour debug
+        raise HTTPException(status_code=500, detail=f"OpenAI error: {e}")
+
 @app.post("/chat")
 def chat(req: ChatRequest):
     if not OPENAI_API_KEY:
-        raise HTTPException(status_code=500, detail="OPENAI_API_KEY manquante")
+        raise HTTPException(status_code=500, detail="OPENAI_API_KEY absente (Render > Settings > Environment).")
+
     msgs = [{"role": "system", "content": "Tu es un assistant concis en français."}]
     if req.history:
         for h in req.history[:10]:
             msgs.append({"role": h.get("role", "user"), "content": h.get("content", "")})
     msgs.append({"role": "user", "content": req.message})
-    resp = client.chat.completions.create(model=MODEL, messages=msgs, temperature=0.4)
-    return {"answer": resp.choices[0].message.content}
 
-@app.get("/")
-def root():
-    return {"ok": True, "hint": "Utilisez /health ou POST /chat"}
+    try:
+        resp = client.chat.completions.create(model=MODEL, messages=msgs, temperature=0.4)
+        return {"answer": resp.choices[0].message.content}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"OpenAI error: {e}")
