@@ -7,11 +7,12 @@ import requests
 
 # Clé et modèle (OpenRouter)
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-MODEL = os.getenv("MODEL", "openai/gpt-4o-mini") # attention: c'est 4o (lettre o), pas 40
+MODEL = os.getenv("MODEL", "openai/gpt-4o-mini") # 4o = lettre o
 
 app = FastAPI(title="Assistant Backend")
 app.add_middleware(
  CORSMiddleware,
+ re,
  allow_origins=["*"],
  allow_methods=["*"],
  allow_headers=["*"],
@@ -27,13 +28,12 @@ def root():
 
 @app.get("/health")
 def health():
- return {"status": "ok"}
+ return health():
+ return rn {"status": "ok"}
 
 @app.get("/env")
 def env():
- return /env")
-def env():
- return rn {"provider": "openrouter", "has_key": bool(OPENROUTER_API_KEY), "model": MODEL}
+ return {"provider": "openrouter", "has_key": bool(OPENROUTER_API_KEY), "model": MODEL}
 
 @app.post("/chat")
 def chat(req: ChatRequest):
@@ -47,10 +47,10 @@ def chat(req: ChatRequest):
  msgs.append({"role": "user", "content": req.message})
 
  r = requests.post(
- req.message})
+ t": req.message})
 
  r = requests.post(
- t(
+ (
  "https://openrouter.ai/api/v1/chat/completions",
  headers={
  "Authorization": f"Bearer {OPENROUTER_API_KEY}",
