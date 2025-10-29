@@ -6,14 +6,11 @@ from pydantic import BaseModel
 import google.generativeai as genai
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-MODEL = os.getenv("MODEL", "gemini-1.5-flash")
+MODEL = os.getenv("MODEL", "gemini-1.5-flash-latest")
 
 app = FastAPI(title="Assistant Backend")
 app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"]
 )
 
 class ChatRequest(BaseModel):
@@ -31,12 +28,10 @@ def env():
 @app.post("/chat")
 def chat(req: ChatRequest):
     if not GEMINI_API_KEY:
-        raise HTTPException(status_code=500, detail="GEMINI_API_KEY manquante (Render > Settings > Environment).")
-
+        raise HTTPException(status_code=500, detail="GEMINI_API_KEY manquante")
     genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel(MODEL)
 
-    # Construit un historique minimal
+    # Historique minimal compatible SDK
     history = []
     if req.history:
         for h in req.history[:10]:
@@ -44,9 +39,15 @@ def chat(req: ChatRequest):
             history.append({"role": role, "parts": [h.get("content", "")]})
 
     try:
+        model = genai.GenerativeModel(MODEL)
         chat_session = model.start_chat(history=history)
         resp = chat_session.send_message(req.message)
-        text = getattr(resp, "text", None) or (resp.candidates[0].content.parts[0].text if resp.candidates else "")
+        text = getattr(resp, "text", None)
+        if not text and getattr(resp, "candidates", None):
+            parts = resp.candidates[0].content.parts
+            text = parts[0].text if parts else ""
         return {"answer": text or "Désolé, aucune réponse."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
